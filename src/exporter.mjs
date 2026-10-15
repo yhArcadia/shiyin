@@ -1,3 +1,5 @@
+import { prepareEngineFiles, waitForTask } from './engine-loader.mjs';
+
 let engine = null;
 let controller = null;
 let zipWorker = null;
@@ -17,6 +19,7 @@ export function cancelExport() {
 function checkCanceled() { if (canceled) throw new DOMException('已取消', 'AbortError'); }
 function friendlyError(error) {
   if (canceled || error?.name === 'AbortError') return new Error('已取消导出，你的分段和名称都保留着。');
+  if (error?.userMessage) return new Error(error.userMessage);
   const detail = `${String(error)}\n${logs.join('\n')}`;
   if (/matches no streams|does not contain any stream|Stream map.*matches/i.test(detail)) return new Error('这个视频没有可读取的声音。可以换一个带声音的视频再试。');
   if (/out of memory|memory access|allocation|Array buffer|Cannot enlarge memory/i.test(detail)) return new Error('浏览器的可用内存不够了。请关闭一些标签页，或换一个小一点的视频再试。');
@@ -25,8 +28,8 @@ function friendlyError(error) {
 }
 async function loadEngine(onUpdate) {
   if (engine?.loaded) return engine;
-  onUpdate({ phase: 'loading', progress: 0, message: '首次使用，正在准备音频工具…' });
-  const { FFmpeg } = await import('../vendor/ffmpeg/index.js');
+  onUpdate({ phase: 'loading', progress: null, message: '正在连接音频工具…', detail: '首次需要下载约 31 MB，请保持页面在前台' });
+  const { FFmpeg } = await waitForTask(() => import('../vendor/ffmpeg/index.js'), { signal: controller.signal, stage: 'module' });
   checkCanceled();
   const instance = new FFmpeg();
   engine = instance;
@@ -35,27 +38,19 @@ async function loadEngine(onUpdate) {
     if (progressCallback) progressCallback(Math.max(0, Math.min(0.98, time / 1_000_000 / currentDuration)));
   });
   const base = new URL('../vendor/core/', import.meta.url);
-  const response = await fetch(new URL('manifest.json', base), { signal: controller.signal });
-  if (!response.ok) throw new Error(`HTTP ${response.status}: engine manifest`);
-  const manifest = await response.json();
-  let received = 0;
-  const parts = await Promise.all(manifest.chunks.map(async name => {
-    const result = await fetch(new URL(name, base), { signal: controller.signal });
-    if (!result.ok) throw new Error(`HTTP ${result.status}: engine part`);
-    const data = await result.arrayBuffer();
-    received += data.byteLength;
-    onUpdate({ phase: 'loading', progress: received / manifest.bytes * 0.9, message: '正在准备音频工具，准备好后会自动继续…' });
-    return data;
-  }));
+  const blob = await waitForTask(() => prepareEngineFiles(base, { signal: controller.signal, onUpdate }), {
+    signal: controller.signal, timeoutMs: 8 * 60 * 1000, stage: 'download', onTimeout: () => controller.abort(),
+    message: '当前网络下载音频工具太慢，请切换网络后重试。你的编辑和已完成的工具文件会保留。'
+  });
   checkCanceled();
-  const wasmURL = URL.createObjectURL(new Blob(parts, { type: 'application/wasm' }));
-  let timeout;
+  onUpdate({ phase: 'loading', progress: 0.92, message: '文件已准备好，正在启动音频工具…', detail: '手机首次启动可能需要一些时间，请保持页面在前台' });
+  const wasmURL = URL.createObjectURL(blob);
   try {
-    await Promise.race([
-      instance.load({ coreURL: new URL('ffmpeg-core.js', base).href, wasmURL }, { signal: controller.signal }),
-      new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('engine load timeout')), 120000); })
-    ]);
-  } finally { clearTimeout(timeout); URL.revokeObjectURL(wasmURL); }
+    await waitForTask(() => instance.load({ coreURL: new URL('ffmpeg-core.js', base).href, wasmURL }, { signal: controller.signal }), {
+      signal: controller.signal, timeoutMs: 60000, stage: 'runtime',
+      message: '文件已下载，但浏览器没能启动音频工具。请更新浏览器，或使用电脑浏览器打开同一网址重试。'
+    });
+  } finally { URL.revokeObjectURL(wasmURL); }
   checkCanceled();
   return instance;
 }

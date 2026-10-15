@@ -1,5 +1,6 @@
 import { MIN_CLIP, roundTime, formatTime, parseTime, newClip, splitClips, moveBoundary, mergeBoundary, baseName, safeName, namedClips, validateDraft, matchingFile } from './domain.mjs';
 import { createTimelineController } from './timeline.mjs';
+import { waitForTask } from './engine-loader.mjs';
 
 const $ = id => document.getElementById(id);
 const video = $('video');
@@ -212,27 +213,30 @@ function updateExport(update) {
   const titles = { loading: '正在准备音频工具', reading: '正在读取视频里的声音', encoding: '正在导出音频', packing: '正在准备保存' };
   $('exportTitle').textContent = titles[update.phase] || '正在准备音频';
   $('exportMessage').textContent = update.message;
-  $('exportProgress').value = Math.max(0, Math.min(1, update.progress));
-  $('exportPercent').textContent = update.phase === 'loading' ? `工具准备 ${Math.round(update.progress * 100)}%` : update.phase === 'encoding' ? `${Math.round(update.progress * 100)}%` : '';
+  if (Number.isFinite(update.progress)) $('exportProgress').value = Math.max(0, Math.min(1, update.progress));
+  else $('exportProgress').removeAttribute('value');
+  $('exportPercent').textContent = update.detail || (update.phase === 'loading' && Number.isFinite(update.progress) ? `工具准备 ${Math.round(update.progress * 100)}%` : update.phase === 'encoding' ? `${Math.round(update.progress * 100)}%` : '');
 }
 async function startExport(ids = null) {
   if (!state.file || busy || opening) return;
   const all = namedClips(state.clips, state.prefix, state.format), clips = all.filter(c => ids ? ids.includes(c.id) : c.checked);
   if (!clips.length) { notify('先勾选需要保存的片段。'); return; }
   timeline.closeMenu(); clearArtifact(); currentJob = { ids: clips.map(c => c.id), canceled: false, cancel: null, url: null };
-  const job = currentJob; busy = true; video.pause(); state.previewEnd = null;
+  const job = currentJob; job.controller = new AbortController(); job.cancel = () => job.controller.abort(); busy = true; video.pause(); state.previewEnd = null;
   $('editor').inert = true; $('openButton').disabled = true;
   $('exportTitle').textContent = '正在准备音频'; $('exportMessage').textContent = '稍等一下，正在准备…'; $('exportProgress').value = 0; $('exportProgress').hidden = false;
   $('exportPercent').textContent = ''; $('exportFileList').replaceChildren();
   $('cancelExportButton').hidden = false; $('cancelExportButton').disabled = false;
   for (const id of ['saveExportButton', 'closeExportButton', 'retryExportButton']) $(id).hidden = true;
-  $('exportLocalNote').textContent = '视频仍在你的电脑里，关闭此页面会中断处理。';
+  $('exportLocalNote').textContent = '视频仍在你的设备里，请保持页面在前台；关闭页面会中断处理。';
   if (!$('exportDialog').open) $('exportDialog').showModal();
+  updateExport({ phase: 'loading', progress: null, message: '正在连接音频工具…', detail: '首次需要下载约 31 MB，请保持页面在前台' });
   let result;
   try {
-    const module = await import('./exporter.mjs'); job.cancel = module.cancelExport;
+    const module = await waitForTask(() => import('./exporter.mjs?v=20261015-2'), { signal: job.controller.signal, stage: 'export-module' });
+    job.cancel = () => { job.controller.abort(); module.cancelExport(); };
     result = job.canceled ? { canceled: true, completed: [], remaining: job.ids, error: '已取消导出，分段和名称都保留着。' } : await module.exportClips({ file: state.file, clips, format: state.format, archiveName: `${safeName(state.prefix)}_课堂音频`, onUpdate: updateExport });
-  } catch (error) { console.error(error); result = { error: '音频工具暂时没有准备好，请重试。你的编辑内容仍然保留。', completed: [], remaining: job.ids }; }
+  } catch (error) { console.error(error); result = { canceled: job.canceled, error: error.userMessage || '音频工具暂时没有准备好，请重试。你的编辑内容仍然保留。', completed: [], remaining: job.ids }; }
   finally { busy = false; $('editor').inert = false; $('openButton').disabled = false; }
   $('cancelExportButton').hidden = true; $('closeExportButton').hidden = false; $('exportProgress').hidden = true; $('exportPercent').textContent = '';
   if (result.artifact) {

@@ -11,10 +11,12 @@ await mkdir(resolve(out, 'vendor/core'), { recursive: true });
 await cp(resolve(root, 'node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js'), resolve(out, 'vendor/core/ffmpeg-core.js'));
 const wasm = await readFile(resolve(root, 'node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.wasm'));
 const chunks = [];
-for (let i = 0; i * 8 * 1024 * 1024 < wasm.length; i++) {
-  const filename = `ffmpeg-core-${i}.bin`;
-  await writeFile(resolve(out, 'vendor/core', filename), wasm.subarray(i * 8 * 1024 * 1024, (i + 1) * 8 * 1024 * 1024));
-  chunks.push(filename);
+const chunkSize = 1024 * 1024;
+for (let i = 0; i * chunkSize < wasm.length; i++) {
+  const filename = `ffmpeg-core-1m-${i}.bin`;
+  const part = wasm.subarray(i * chunkSize, (i + 1) * chunkSize);
+  await writeFile(resolve(out, 'vendor/core', filename), part);
+  chunks.push({ name: filename, bytes: part.byteLength });
 }
 await writeFile(resolve(out, 'vendor/core/manifest.json'), JSON.stringify({ version: '0.12.10', bytes: wasm.length, chunks }));
 await mkdir(resolve(out, 'vendor/fflate'), { recursive: true });
