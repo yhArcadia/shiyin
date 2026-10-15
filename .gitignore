@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.local/
+test/fixtures/
+test/results/
+*.tar.gz
+.DS_Store

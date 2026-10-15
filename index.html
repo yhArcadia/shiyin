@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="在本机浏览器里，为课堂截取、命名并导出音频。视频不上传，拖动标记，听好再分段。">
+  <meta name="theme-color" content="#45634d">
+  <title>拾音 · 课堂音频小帮手</title>
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./src/styles.css">
+  <link rel="stylesheet" href="./src/editor.css">
+  <script src="./vendor/lucide.min.js" defer></script>
+  <script type="module" src="./src/app.mjs"></script>
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <a class="brand" href="./" aria-label="拾音首页"><span class="brand-icon"><i data-lucide="sprout" aria-hidden="true"></i></span><span><span class="brand-name">拾音</span><span class="brand-caption">把课堂需要的声音，轻轻留下来</span></span></a>
+      <div class="header-actions"><button id="helpButton" class="quiet"><i data-lucide="circle-help" aria-hidden="true"></i><span>怎么用</span></button><button id="openButton"><i data-lucide="folder-open" aria-hidden="true"></i><span>打开视频</span></button></div>
+    </header>
+    <input id="fileInput" type="file" accept="video/*,.mkv,.mov,.avi,.m4v,.ts" hidden>
+    <section id="welcome" class="welcome" aria-labelledby="welcomeTitle">
+      <div class="welcome-heading"><span class="eyebrow">给下一堂课，留一段好声音</span><h1 id="welcomeTitle">挑出需要的片段，<br>起个名字，就能带进课堂。</h1><p>课文范读、跟读练习、课堂素材，分成几段音频保存。<br>视频留在你的电脑里，操作都在浏览器内完成。</p></div>
+      <button id="dropzone" class="dropzone"><span class="drop-icon"><i data-lucide="film" aria-hidden="true"></i></span><strong>选择一个视频</strong><span>也可以把视频拖到这里</span><small>推荐 MP4 · 适合 20 分钟以内的课堂素材</small></button>
+      <div class="welcome-steps"><span><b>1</b>拖动，留下分段标记</span><span><b>2</b>播放确认，再分段</span><span><b>3</b>起名字，下载音频</span></div>
+      <aside id="draftBanner" class="draft-banner" hidden><i data-lucide="bookmark-check" aria-hidden="true"></i><div><strong>上次的编辑还在</strong><p id="draftDescription"></p></div><button id="resumeButton">继续上次编辑</button></aside>
+    </section>
+    <section id="workspace" class="workspace" aria-label="音频编辑工作台" hidden>
+      <div class="file-heading"><div><h1 id="projectTitle">准备课堂音频</h1><p id="fileDescription"></p></div><span id="saveStatus" class="save-status"><i data-lucide="check" aria-hidden="true"></i>已在本机保存草稿</span></div>
+      <div id="editor" class="editor">
+        <section class="player-panel" aria-label="视频与分段控制">
+          <div class="video-frame"><video id="video" playsinline preload="metadata" aria-label="视频预览"></video><button id="screenPlayButton" class="screen-play" aria-label="播放视频"><i data-lucide="play" aria-hidden="true"></i></button></div>
+          <div class="playback-time"><span>播放到 <strong id="playbackTime">00:00.000</strong><span id="durationText" class="muted"></span></span><span id="playState" class="muted">已暂停</span></div>
+          <div class="timeline-heading"><label for="seek">拖动定位，松手后记住这个位置</label><div class="zoom-controls"><button id="zoomOut" class="icon-button" aria-label="缩小时间轴"><i data-lucide="minus" aria-hidden="true"></i></button><input id="zoomSlider" type="range" min="1" max="16" step="0.05" value="1" aria-label="时间轴缩放"><button id="zoomIn" class="icon-button" aria-label="放大时间轴"><i data-lucide="plus" aria-hidden="true"></i></button><output id="zoomLabel">完整视频</output></div></div>
+          <div id="timelineRegion" class="timeline-region"><div id="timelineScroller" class="timeline-scroller"><div id="timelineContent" class="timeline-content"><div class="seek-wrap"><input id="seek" type="range" min="0" max="1" step="0.001" value="0" aria-label="拖动定位并留下分段标记"><div class="marker-overlay" aria-hidden="true"><span id="markerPin" class="marker-pin" hidden></span></div></div><div id="segments" class="segments" aria-label="分段时间轴"></div><div id="timeRuler" class="time-ruler" aria-label="拖动时间刻度可平移视野"></div></div></div><div id="boundaryMenu" class="boundary-menu" role="group" aria-label="切分点操作" hidden><span id="boundaryMenuTime"></span><div><button id="removeBoundaryButton"><i data-lucide="combine" aria-hidden="true"></i>合并前后两段</button><button id="closeBoundaryMenu" class="icon-button" aria-label="关闭切分点操作"><i data-lucide="x" aria-hidden="true"></i></button></div></div></div>
+          <p id="timelineHint" class="timeline-hint">放大后，拖动刻度或片段可移动时间窗口。</p>
+          <div class="marker-summary"><span><i data-lucide="flag" aria-hidden="true"></i><strong id="markerTime">拖动后留下分段标记</strong></span><button id="returnButton" class="quiet" disabled>回到标记</button></div>
+          <div class="transport"><button id="playButton"><i data-lucide="play" aria-hidden="true"></i><span>播放看看</span></button><button id="splitButton" class="primary"><i data-lucide="scissors" aria-hidden="true"></i><span>在播放位置分段</span></button><button id="undoButton" class="history-action" disabled aria-label="撤销"><i data-lucide="undo-2" aria-hidden="true"></i><span>撤销</span></button><button id="redoButton" class="history-action" disabled aria-label="重做"><i data-lucide="redo-2" aria-hidden="true"></i><span>重做</span></button></div>
+          <p id="splitHint" class="hint">菱形标记记住你松手的位置，圆点跟随播放。播放确认后，直接按标记分段。</p>
+          <p class="history-note">原视频不会被修改，所有编辑都可以撤销。</p>
+          <details class="fine-settings"><summary>精细调整标记</summary><div class="fine-row"><label>分段标记时间<input id="markerInput" type="text" placeholder="01:23.500" inputmode="decimal" aria-label="分段标记时间"></label><button id="markerBack" aria-label="标记前移 0.1 秒">− 0.1 秒</button><button id="markerForward" aria-label="标记后移 0.1 秒">＋ 0.1 秒</button></div><p class="hint">也可以拖动时间轴上的分段边界，同时调整相邻两段。</p></details>
+        </section>
+        <aside class="clips-panel" aria-label="音频片段列表">
+          <div class="panel-heading"><h2>要保存的音频</h2><span id="selectedCount">已选 0 段</span></div>
+          <div class="selection-tools"><button id="selectAll" class="quiet">全选</button><button id="selectNone" class="quiet">都不选</button><span id="selectedDuration"></span></div>
+          <div id="clipList" class="clip-list"></div>
+          <p class="hint">点击片段空白处勾选或取消，点击名称直接改名。</p>
+          <details class="export-settings"><summary>统一命名与音频格式</summary><div class="settings-fields"><label>统一名称前缀<input id="prefixInput" type="text" maxlength="100" placeholder="例如：荷叶圆圆"></label><p class="hint">自动加编号；自己改过的名字会保留。</p><label>音频格式<select id="formatSelect"><option value="mp3">MP3 · 日常播放，推荐</option><option value="wav">WAV · 文件较大</option></select></label></div></details>
+          <button id="exportButton" class="primary export-button"><i data-lucide="download" aria-hidden="true"></i><span>下载选中的音频</span></button><p class="download-note">多段会放进一个压缩包，方便一起保存</p>
+        </aside>
+      </div>
+      <p id="editorStatus" class="editor-status" role="status">可以开始播放，或拖动到第一个分段位置。</p>
+    </section>
+    <footer class="footer"><span><i data-lucide="shield-check" aria-hidden="true"></i>视频在本机处理</span><span>愿备课轻松一点</span><a href="./credits.html" target="_blank" rel="noopener">开源组件</a></footer>
+  </main>
+  <div id="dropOverlay" class="drop-overlay" hidden><i data-lucide="folder-open" aria-hidden="true"></i><strong>松手打开这个视频</strong></div>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <dialog id="helpDialog" aria-labelledby="helpTitle"><button class="dialog-close icon-button" data-close="helpDialog" aria-label="关闭使用说明"><i data-lucide="x" aria-hidden="true"></i></button><h2 id="helpTitle">三步，把声音留下来</h2><ol class="help-steps"><li><strong>拖动定位</strong><p>松开进度条，就会留下一个菱形分段标记。</p></li><li><strong>播放确认，再分段</strong><p>播放时标记不动。听好后点“在标记处分段”，不用把进度条拖回去。</p></li><li><strong>起名字，下载</strong><p>在右侧修改名称，勾选需要的片段，再下载音频。</p></li></ol><p class="hint">不需要的内容取消勾选即可。修改边界时，前一段结尾和后一段开头会一起调整。</p><details class="shortcut-help"><summary>熟悉以后，可以用快捷键</summary><dl><dt>空格</dt><dd>播放 / 暂停</dd><dt>S</dt><dd>在标记处分段</dd><dt>← / →</dt><dd>前后定位 1 秒并更新标记</dd><dt>Shift + ← / →</dt><dd>微调 0.1 秒</dd><dt>Ctrl / ⌘ + Z</dt><dd>撤销</dd><dt>Ctrl / ⌘ + Shift + Z</dt><dd>重做</dd></dl></details><button class="primary full-width" data-close="helpDialog">知道了，开始试试</button></dialog>
+  <dialog id="confirmDialog" aria-labelledby="confirmTitle"><h2 id="confirmTitle"></h2><p id="confirmText"></p><div class="dialog-actions"><button id="confirmNo">先不换</button><button id="confirmYes" class="primary">打开新视频</button></div></dialog>
+  <dialog id="exportDialog" aria-labelledby="exportTitle"><div class="export-dialog-icon"><i data-lucide="audio-lines" aria-hidden="true"></i></div><h2 id="exportTitle">正在准备音频</h2><p id="exportMessage" role="status"></p><progress id="exportProgress" max="1" value="0" aria-label="音频导出进度"></progress><p id="exportPercent" class="progress-note"></p><div id="exportFileList" class="export-file-list"></div><div class="dialog-actions"><button id="cancelExportButton">取消导出</button><button id="closeExportButton" hidden>返回编辑</button><button id="retryExportButton" hidden>重试剩余片段</button><a id="saveExportButton" class="download-link" download hidden><i data-lucide="download" aria-hidden="true"></i><span>保存到电脑</span></a></div><p id="exportLocalNote" class="hint">视频仍在你的电脑里，关闭此页面会中断处理。</p></dialog>
+  <noscript>拾音需要开启浏览器的 JavaScript 才能预览和处理视频。</noscript>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "name": "shiyin",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "拾音：在浏览器里为课堂截取和命名音频",
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@ffmpeg/core": "0.12.10",
+    "@ffmpeg/ffmpeg": "0.12.15",
+    "fflate": "0.8.3",
+    "lucide": "0.468.0"
+  }
+}
